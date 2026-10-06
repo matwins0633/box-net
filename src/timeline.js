@@ -9,6 +9,8 @@ export const SEGMENTS = [
   ['fold-1', 3.0], // 子の面（left, front）が立ち上がる
   ['fold-2', 3.0], // 孫の面（back, right）が立ち上がる
   ['hold-built', 1.5], // 完成して間をおく
+  ['sketch', 2.5], // ゆっくり色が消え、見取り図の表示になる
+  ['hold-sketch', 0.6],
   ['top-appear', 1.2], // 天面が閉じた位置に現れる
   ['hold-top', 0.8],
   ['open-1', 2.5], // 天面が開く
@@ -57,6 +59,7 @@ function span(u, first, last) {
 // u における状態
 //  fold: 折れ具合（0=開いている、1=90°折れている）
 //    children: 子の面（left, front） / grandchildren: 孫の面（back, right） / top: 天面
+//  sketch: 見取り図への切り替え具合（0=色つき、1=見取り図）
 //  top: 天面の見え具合（0=まだない、1=見えている）
 //  camera: カメラの角度（0=真上、1=斜め上）
 export function sample(u) {
@@ -70,6 +73,7 @@ export function sample(u) {
 
   return {
     fold: { children, grandchildren, top },
+    sketch: easeInOut(progress(u, 'sketch')),
     top: easeInOut(progress(u, 'top-appear')),
     camera,
   };
