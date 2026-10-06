@@ -1,6 +1,7 @@
 // 画面のスクリーンショットを撮って表示を確かめるためのスクリプト（Playwright を使用）。
 // CDN のライブラリは node_modules の同じバージョンに差し替えて読み込む。
 // 使い方: node tests/screenshots.mjs <保存先フォルダ> [位置 u をカンマ区切りで] [パターン番号をカンマ区切りで]
+// 環境変数 BROWSER_PATH で、使うブラウザ（Microsoft Edge など）の実行ファイルを指定できる。
 
 import { chromium } from 'playwright';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -11,9 +12,17 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = process.argv[2] || 'screenshots';
 const points = (process.argv[3] || '0,0.15,0.3,0.45,0.6,0.75,1').split(',').map(Number);
 const patterns = (process.argv[4] || '1').split(',').map(Number);
-const ORIGIN = 'http://box-net.test/';
+// 動画づくり（WebCodecs）は安全な接続でしか使えないので、localhost として開く
+const ORIGIN = 'http://localhost:8123/';
 
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
+export function launch() {
+  return chromium.launch({
+    executablePath: process.env.BROWSER_PATH || undefined,
+    args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+  });
+}
+
+const TYPES = { '.mp4': 'video/mp4', '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
 
 export async function openPage(browser, viewport = { width: 1280, height: 900 }) {
   const page = await browser.newPage({ viewport });
@@ -41,7 +50,7 @@ export async function openPage(browser, viewport = { width: 1280, height: 900 })
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   await mkdir(outDir, { recursive: true });
-  const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const browser = await launch();
   const page = await openPage(browser);
   await page.screenshot({ path: path.join(outDir, 'page.png') });
   for (const p of patterns) {

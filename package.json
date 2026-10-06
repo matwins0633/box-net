@@ -6,6 +6,7 @@
     "test": "node --test tests/*.test.mjs"
   },
   "devDependencies": {
+    "mediabunny": "1.61.3",
     "playwright": "1.56.1",
     "three": "0.186.1"
   }

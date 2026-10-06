@@ -1,9 +1,8 @@
 // 流れ全体で、面が画面の外にはみ出さないかを調べる（Playwright を使用）
-import { chromium } from 'playwright';
-import { openPage } from './screenshots.mjs';
+import { openPage, launch } from './screenshots.mjs';
 
 const LIMIT = 0.95; // 画面の端から 5% 以内に収める
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await launch();
 const page = await openPage(browser);
 let ok = true;
 for (const pattern of [1, 2, 3, 4]) {

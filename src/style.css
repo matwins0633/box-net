@@ -2,19 +2,43 @@
   --bg: #f7f8fa;
   --panel: #ffffff;
   --text: #1f2328;
+  --muted: #57606a;
   --accent: #1e6fd9;
+  --accent-dark: #1858ad;
   --border: #d0d7de;
+  --header-h: 56px;
+  --player-h: 64px;
 }
 * { box-sizing: border-box; }
+html, body { margin: 0; }
 body {
-  margin: 0;
   background: var(--bg);
   color: var(--text);
   font-family: "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+  font-size: 17px;
 }
-header { padding: 12px 24px 4px; }
+header {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+}
 h1 { margin: 0; font-size: 26px; }
-main { max-width: 1280px; margin: 0 auto; padding: 8px 24px 24px; }
+h2 { font-size: 18px; margin: 0 0 8px; }
+
+/* 左にプレビュー、右に操作。プレビューは画面の高さに収まる大きさにする */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
+  padding: 0 24px 8px;
+  align-items: start;
+}
+.viewer {
+  width: min(100%, calc((100vh - var(--header-h) - var(--player-h) - 12px) * 16 / 9));
+  min-width: 320px;
+  justify-self: center;
+}
 .stage {
   position: relative;
   width: 100%;
@@ -25,41 +49,105 @@ main { max-width: 1280px; margin: 0 auto; padding: 8px 24px 24px; }
   overflow: hidden;
 }
 #view { display: block; width: 100%; height: 100%; }
-.player { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
-button.big {
-  font: inherit;
+.load-error {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
   font-size: 20px;
-  min-width: 150px;
-  padding: 10px 18px;
-  border: 2px solid var(--accent);
-  border-radius: 10px;
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
+  background: var(--bg);
 }
-#seek { flex: 1; height: 32px; accent-color: var(--accent); cursor: pointer; }
+.load-error[hidden] { display: none; }
 
-h2 { font-size: 18px; margin: 0 0 6px; }
-.patterns { margin-bottom: 12px; }
-.pattern-list { display: flex; gap: 12px; flex-wrap: wrap; }
-.pattern-btn {
+.player {
+  height: var(--player-h);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+#seek { flex: 1; height: 36px; accent-color: var(--accent); cursor: pointer; }
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+button, .button-link {
   font: inherit;
-  font-size: 17px;
+  color: var(--text);
+  background: var(--panel);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+}
+button:hover, .button-link:hover { border-color: #8c959f; }
+button:focus-visible, .button-link:focus-visible, #seek:focus-visible {
+  outline: 3px solid #f2b705;
+  outline-offset: 2px;
+}
+button:disabled { opacity: 0.5; cursor: default; }
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: bold;
+}
+.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.play { min-width: 160px; font-size: 20px; }
+.wide { width: 100%; font-size: 19px; padding: 14px; }
+
+/* 選ばれているボタン */
+button[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+  background: #eaf2fd;
+  font-weight: bold;
+}
+
+.pattern-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pattern-list button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 8px 12px 6px;
-  background: var(--panel);
-  color: var(--text);
-  border: 2px solid var(--border);
-  border-radius: 10px;
-  cursor: pointer;
+  gap: 2px;
+  padding: 6px 6px 4px;
 }
-.pattern-btn:hover { border-color: #8c959f; }
-.pattern-btn[aria-pressed="true"] {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent);
-  font-weight: bold;
+.pattern-list svg { display: block; width: 100%; max-width: 110px; aspect-ratio: 1; }
+
+.speed-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.speed-list button { padding: 10px 4px; }
+
+/* 動画づくりの画面 */
+.video-dialog {
+  border: none;
+  border-radius: 14px;
+  padding: 24px;
+  width: min(92vw, 900px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
-.pattern-btn svg { display: block; width: 100px; height: 100px; }
+.video-dialog::backdrop { background: rgba(31, 35, 40, 0.55); }
+.video-dialog h2 { font-size: 22px; margin-bottom: 14px; }
+.video-dialog progress { width: 100%; height: 28px; accent-color: var(--accent); }
+.progress-text { font-size: 22px; text-align: center; margin: 10px 0; }
+.video-dialog video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; }
+.dialog-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+.dialog-buttons > * { min-width: 140px; font-size: 19px; }
+[hidden] { display: none !important; }
+
+/* 狭い画面では操作を下に並べる */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .viewer { width: 100%; }
+}
