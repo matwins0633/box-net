@@ -21,6 +21,10 @@ const EDGE = '#262A30';
 
 const FOV = 30;
 const LINE_WIDTH_AT_1080 = 4; // 1080px の高さのときの辺の太さ（ピクセル）
+const HIDDEN_WIDTH_RATIO = 0.75; // 見えない辺（破線）の太さ（見える辺に対する割合）
+// 破線の模様（長さの単位は床の1マス）。辺の長さ（1 か 2）がくり返しの長さで割り切れ、
+// 辺の両端が「すき間の半分」になるようにして、どちら向きに描いても同じ模様になるようにする。
+const DASH = { size: 0.12, gap: 0.08 };
 
 // 斜め上から見るときのカメラの角度
 const OBLIQUE = { polar: THREE.MathUtils.degToRad(55), azimuth: THREE.MathUtils.degToRad(32) };
@@ -30,7 +34,21 @@ const FILL = 0.8;
 const SMOOTH_WINDOW = 0.7 / BASE_TOTAL;
 const SMOOTH_SAMPLES = 8;
 
+const WHITE = new THREE.Color('#ffffff');
 const LIGHT_DIR = new THREE.Vector3(-0.35, 1, 0.55).normalize();
+
+// 辺の線を、画面上の位置は変えずに、カメラの方へほんの少しだけ寄せる（距離の LINE_PULL 倍）。
+// 面のふちにある辺が、その面や隣の面に埋もれて「見えない辺」と判定されないようにする。
+// （面を斜めから見ると、太い線の幅の分だけ面の方が手前になることがあるため）
+const LINE_PULL = 0.004;
+function pullLinesTowardCamera(material) {
+  const anchor = 'vec4 end = modelViewMatrix * vec4( instanceEnd, 1.0 );';
+  if (!material.vertexShader.includes(anchor)) throw new Error('LineMaterial のシェーダーが想定と違います');
+  material.vertexShader = material.vertexShader.replace(
+    anchor,
+    `${anchor}\n\t\t\tstart.xyz *= ${(1 - LINE_PULL).toFixed(6)};\n\t\t\tend.xyz *= ${(1 - LINE_PULL).toFixed(6)};`,
+  );
+}
 
 export class BoxScene {
   constructor(renderer) {
@@ -41,15 +59,47 @@ export class BoxScene {
     this.camera = new THREE.PerspectiveCamera(FOV, 16 / 9, 0.1, 200);
     this.scene.add(this.createFloor());
 
+    // 辺は2回に分けて描く。
+    //  1回目（実線）: 面より手前にある部分 ＝ 見える辺
+    //  2回目（破線）: 面より奥にある部分 ＝ 見えない辺（深度テストを逆にして描く）
+    // ステンシルで「すでに線を描いたピクセル」に印をつけ、重なった辺を二重に描かないようにする
+    // （重なった半透明の破線が濃くなったり、ちらついたりしない）。
+    const stencil = {
+      stencilWrite: true,
+      stencilRef: 1,
+      stencilZPass: THREE.ReplaceStencilOp,
+    };
     this.lineSolid = new LineMaterial({
       color: EDGE,
       linewidth: LINE_WIDTH_AT_1080,
       transparent: true,
       depthWrite: false,
+      ...stencil,
+      stencilFunc: THREE.AlwaysStencilFunc,
+    });
+    this.lineHidden = new LineMaterial({
+      color: EDGE,
+      linewidth: LINE_WIDTH_AT_1080 * HIDDEN_WIDTH_RATIO,
+      transparent: true,
+      depthWrite: false,
+      depthFunc: THREE.GreaterDepth,
+      dashed: true,
+      dashSize: DASH.size,
+      gapSize: DASH.gap,
+      dashOffset: DASH.size + DASH.gap / 2,
+      ...stencil,
+      stencilFunc: THREE.NotEqualStencilFunc,
     });
 
-    // 天面の辺は、天面と一緒に現れるように別の材質にする
-    this.lineTop = this.lineSolid.clone();
+    pullLinesTowardCamera(this.lineSolid);
+    pullLinesTowardCamera(this.lineHidden);
+
+    // 天面が現れるときの重ね合わせ用：天面のない場面を描いておく画像と、それを重ねる板
+    this.fadeTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4, stencilBuffer: true });
+    this.fadeMaterial = new THREE.MeshBasicMaterial({ map: this.fadeTarget.texture, transparent: true, depthTest: false, depthWrite: false });
+    this.fadeScene = new THREE.Scene();
+    this.fadeScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.fadeMaterial));
+    this.fadeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     this.pattern = 1;
     this.buildFaces(facesForPattern(this.pattern));
@@ -59,11 +109,8 @@ export class BoxScene {
   createFloor() {
     const size = 60;
     const geo = new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2);
-    const bg = new THREE.Color().setStyle(BACKGROUND, THREE.SRGBColorSpace);
-    const line = new THREE.Color().setStyle(GRID_LINE, THREE.SRGBColorSpace);
-    // 色は sRGB の値のまま出力する（背景色と完全に一致させるため）
-    bg.convertLinearToSRGB();
-    line.convertLinearToSRGB();
+    const bg = new THREE.Color(BACKGROUND);
+    const line = new THREE.Color(GRID_LINE);
     const mat = new THREE.ShaderMaterial({
       uniforms: {
         uBg: { value: bg },
@@ -95,6 +142,7 @@ export class BoxScene {
           a *= 1.0 - smoothstep(0.15, 0.4, max(fw.x, fw.y));
           a *= 1.0 - smoothstep(uFade.x, uFade.y, distance(vXZ, uCenter));
           gl_FragColor = vec4(mix(uBg, uLine, a), 1.0);
+          #include <colorspace_fragment>
         }`,
       depthWrite: false,
     });
@@ -125,7 +173,6 @@ export class BoxScene {
         polygonOffsetFactor: 1,
         polygonOffsetUnits: 1,
       });
-      if (id === 'top') mat.transparent = true;
       const mesh = new THREE.Mesh(geo, mat);
       node.pivot.add(mesh);
       node.mesh = mesh;
@@ -136,10 +183,13 @@ export class BoxScene {
         pos.push(...node.corners[i].toArray(), ...node.corners[j].toArray());
       }
       const lgeo = new LineSegmentsGeometry().setPositions(pos);
-      const solid = new LineSegments2(lgeo, id === 'top' ? this.lineTop : this.lineSolid);
+      const solid = new LineSegments2(lgeo, this.lineSolid);
       solid.renderOrder = 10;
-      node.pivot.add(solid);
-      node.lines = solid;
+      const hidden = new LineSegments2(lgeo, this.lineHidden);
+      hidden.computeLineDistances();
+      hidden.renderOrder = 11;
+      node.pivot.add(solid, hidden);
+      node.lines = [solid, hidden];
     }
     this.scene.add(tree.root);
     this.tree = tree;
@@ -160,9 +210,14 @@ export class BoxScene {
       else if (node.def.level === 1) setFold(node, s.fold.children);
       else if (node.def.level === 2) setFold(node, s.fold.grandchildren);
     }
-    const top = nodes.top;
-    top.mesh.visible = top.lines.visible = s.top > 0;
+    this.setTopVisible(s.top > 0);
     this.tree.root.updateMatrixWorld(true);
+  }
+
+  setTopVisible(v) {
+    const top = this.tree.nodes.top;
+    top.mesh.visible = v;
+    for (const l of top.lines) l.visible = v;
   }
 
   // 見えている面の頂点（ワールド座標）
@@ -245,7 +300,7 @@ export class BoxScene {
   }
 
   // 面の明るさ：カメラ側を向いた法線と光の向きで、わずかに陰影をつける
-  shadeFaces() {
+  shadeFaces(sketch) {
     const n = new THREE.Vector3();
     const toCam = new THREE.Vector3();
     const q = new THREE.Quaternion();
@@ -258,6 +313,8 @@ export class BoxScene {
       if (n.dot(toCam) < 0) n.negate();
       const shade = 0.8 + 0.2 * Math.max(0, n.dot(LIGHT_DIR));
       node.mesh.material.color.copy(node.baseColor).multiplyScalar(shade);
+      // 見取り図では面を白にする（天面だけは水色のまま）
+      if (id !== 'top') node.mesh.material.color.lerp(WHITE, sketch);
     }
   }
 
@@ -282,21 +339,36 @@ export class BoxScene {
     const s = sample(u);
     this.placeCamera(u, w / h);
     this.applyState(s);
-    // 天面は、現れるまでは描かない
-    const top = this.tree.nodes.top;
-    top.mesh.material.opacity = s.top;
-    top.mesh.material.depthWrite = s.top >= 1;
-    this.lineTop.opacity = s.top;
     this.scene.updateMatrixWorld(true);
-    this.shadeFaces();
+    this.shadeFaces(s.sketch);
 
     const scale = h / 1080;
     this.lineSolid.linewidth = LINE_WIDTH_AT_1080 * scale;
+    this.lineHidden.linewidth = LINE_WIDTH_AT_1080 * HIDDEN_WIDTH_RATIO * scale;
     this.lineSolid.resolution.set(w, h);
-    this.lineTop.linewidth = this.lineSolid.linewidth;
-    this.lineTop.resolution.set(w, h);
+    this.lineHidden.resolution.set(w, h);
+    // 見えない辺の破線は、見取り図に切り替わるにつれて現れる
+    this.lineHidden.opacity = s.sketch;
+    this.lineHidden.visible = s.sketch > 0;
     this.floorMaterial.uniforms.uPixel.value = Math.max(1, 1.6 * scale);
 
-    this.renderer.render(this.scene, this.camera);
+    const r = this.renderer;
+    if (s.top > 0 && s.top < 1) {
+      // 天面が現れる途中：「天面のない場面」と「天面のある場面」を重ね合わせる。
+      // （天面に隠れる辺が、実線から破線へ自然に切り替わる）
+      this.fadeTarget.setSize(w, h);
+      this.setTopVisible(false);
+      r.setRenderTarget(this.fadeTarget);
+      r.render(this.scene, this.camera);
+      r.setRenderTarget(null);
+      this.setTopVisible(true);
+      r.render(this.scene, this.camera);
+      this.fadeMaterial.opacity = 1 - s.top;
+      r.autoClear = false;
+      r.render(this.fadeScene, this.fadeCamera);
+      r.autoClear = true;
+    } else {
+      r.render(this.scene, this.camera);
+    }
   }
 }

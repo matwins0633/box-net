@@ -3,7 +3,7 @@
 // 使い方: node tests/screenshots.mjs <保存先フォルダ> [位置 u をカンマ区切りで] [パターン番号をカンマ区切りで]
 
 import { chromium } from 'playwright';
-import { readFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -49,6 +49,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     for (const u of points) {
       await page.evaluate((u) => window.boxNet.setU(u), u);
       await page.locator('#view').screenshot({ path: path.join(outDir, `p${p}-u${u.toFixed(3)}.png`) });
+      if (process.env.FULL_HD) {
+        // 動画と同じ 1920×1080 のコマも保存する
+        const url = await page.evaluate((u) => window.boxNet.snapshot(u), u);
+        await writeFile(path.join(outDir, `p${p}-u${u.toFixed(3)}-1080p.png`), Buffer.from(url.split(',')[1], 'base64'));
+      }
     }
   }
   await browser.close();

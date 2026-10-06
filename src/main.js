@@ -97,10 +97,25 @@ seek.addEventListener('input', () => {
   state.u = seek.value / 1000;
 });
 
+// 画面に出さずに、指定した大きさで1コマを描く（動画の書き出し・確認用）
+let offscreen = null;
+function renderOffscreen(u, w, h) {
+  if (!offscreen) {
+    const c = document.createElement('canvas');
+    const r = new THREE.WebGLRenderer({ canvas: c, antialias: true, stencil: true, preserveDrawingBuffer: true });
+    offscreen = { canvas: c, renderer: r, scene: new BoxScene(r) };
+  }
+  offscreen.scene.setPattern(state.pattern);
+  offscreen.renderer.setSize(w, h, false);
+  offscreen.scene.render(u, w, h);
+  return offscreen.canvas;
+}
+
 // 確認用：位置を外から指定できるようにする
 window.boxNet = {
   _scene: boxScene,
   setPattern,
+  snapshot(u, w = 1920, h = 1080) { return renderOffscreen(u, w, h).toDataURL('image/png'); },
   setU(u) { state.u = u; seek.value = Math.round(u * 1000); draw(); },
   // 流れ全体で、面が画面からはみ出していないかを調べる
   framing(steps = 200) {
