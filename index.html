@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>直方体の展開図</title>
+  <link rel="stylesheet" href="src/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <header>
+    <h1>直方体の展開図</h1>
+  </header>
+  <main>
+    <section class="patterns" aria-label="天面のパターン">
+      <h2>天面のつけかた</h2>
+      <div id="patterns" class="pattern-list"></div>
+    </section>
+    <div class="stage">
+      <canvas id="view"></canvas>
+    </div>
+    <div class="player">
+      <button id="play" class="big" type="button">▶ 再生</button>
+      <input id="seek" type="range" min="0" max="1000" step="1" value="0" aria-label="流れの位置">
+    </div>
+  </main>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
