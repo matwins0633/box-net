@@ -7,7 +7,7 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--ena
 const page = await openPage(browser);
 let ok = true;
 for (const pattern of [1, 2, 3, 4]) {
-  const res = await page.evaluate((p) => { window.boxNet.setPattern?.(p); return window.boxNet.framing(); }, pattern);
+  const res = await page.evaluate((p) => { window.boxNet.setPattern(p); return window.boxNet.framing(); }, pattern);
   const worst = res.reduce((a, b) => (Math.max(b.x, b.y) > Math.max(a.x, a.y) ? b : a));
   const bad = res.filter((r) => r.x > LIMIT || r.y > LIMIT);
   console.log(`パターン${pattern}: 最大 x=${worst.x} y=${worst.y} (u=${worst.u})  はみ出し ${bad.length} コマ`, bad.slice(0, 5));

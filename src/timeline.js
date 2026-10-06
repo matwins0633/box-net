@@ -8,10 +8,16 @@ export const SEGMENTS = [
   ['hold-start', 1.5], // 真上から展開図を見せて静止
   ['fold-1', 3.0], // 子の面（left, front）が立ち上がる
   ['fold-2', 3.0], // 孫の面（back, right）が立ち上がる
-  ['hold-built', 2.0], // 完成して間をおく
+  ['hold-built', 1.5], // 完成して間をおく
+  ['top-appear', 1.2], // 天面が閉じた位置に現れる
+  ['hold-top', 0.8],
+  ['open-1', 2.5], // 天面が開く
+  ['open-2', 2.5], // 孫の面が開く
+  ['open-3', 2.5], // 子の面が開く
+  ['hold-end', 2.5], // 真上から6面の展開図を見せて静止
 ];
 
-const BASE_TOTAL = SEGMENTS.reduce((s, [, d]) => s + d, 0);
+export const BASE_TOTAL = SEGMENTS.reduce((s, [, d]) => s + d, 0);
 
 export function totalDuration(speed = 'normal') {
   return BASE_TOTAL * SPEEDS[speed];
@@ -25,7 +31,7 @@ const easeInOutCubic = (x) => {
 };
 
 // 区間の開始・終了（0〜1）
-const RANGES = (() => {
+export const RANGES = (() => {
   const r = {};
   let acc = 0;
   for (const [name, d] of SEGMENTS) {
@@ -41,18 +47,30 @@ function progress(u, name) {
   return clamp01((u - a) / (b - a));
 }
 
+// 区間 first の始めから区間 last の終わりまでの進み具合（0〜1）
+function span(u, first, last) {
+  const a = RANGES[first][0];
+  const b = RANGES[last][1];
+  return clamp01((u - a) / (b - a));
+}
+
 // u における状態
-//  fold: 各段階の折れ具合（0=開いている、1=90°折れている）
-//  camera: 0=真上、1=斜め上
+//  fold: 折れ具合（0=開いている、1=90°折れている）
+//    children: 子の面（left, front） / grandchildren: 孫の面（back, right） / top: 天面
+//  top: 天面の見え具合（0=まだない、1=見えている）
+//  camera: カメラの角度（0=真上、1=斜め上）
 export function sample(u) {
-  const f1 = easeInOut(progress(u, 'fold-1'));
-  const f2 = easeInOut(progress(u, 'fold-2'));
-  // カメラは折っている間（第1段階の始めから第2段階の終わりまで）にゆっくり動く
-  const camStart = RANGES['fold-1'][0];
-  const camEnd = RANGES['fold-2'][1];
-  const camera = easeInOutCubic((u - camStart) / (camEnd - camStart));
+  const children = easeInOut(progress(u, 'fold-1')) - easeInOut(progress(u, 'open-3'));
+  const grandchildren = easeInOut(progress(u, 'fold-2')) - easeInOut(progress(u, 'open-2'));
+  const top = 1 - easeInOut(progress(u, 'open-1'));
+
+  // カメラの角度（0=真上、1=斜め上）。折っている間に斜め上へ、開いている間に真上へ、ゆっくり動く。
+  // カメラの距離と注視点は、そのとき見えている面がちょうど画面に収まるように scene.js で決める。
+  const camera = easeInOutCubic(span(u, 'fold-1', 'fold-2')) - easeInOutCubic(span(u, 'open-1', 'open-3'));
+
   return {
-    fold: { level1: f1, level2: f2, level3: 0 },
+    fold: { children, grandchildren, top },
+    top: easeInOut(progress(u, 'top-appear')),
     camera,
   };
 }
