@@ -4,12 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>直方体の展開図</title>
+  <meta name="description" content="直方体の展開図が組み立てられ、また開いていく様子を3Dで見せ、MP4動画として保存できる算数の教材ツールです。">
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="src/style.css">
   <script type="importmap">
   {
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/",
+      "mediabunny": "https://cdn.jsdelivr.net/npm/mediabunny@1.61.3/dist/bundles/mediabunny.min.mjs"
     }
   }
   </script>
@@ -18,19 +21,74 @@
   <header>
     <h1>直方体の展開図</h1>
   </header>
-  <main>
-    <section class="patterns" aria-label="天面のパターン">
-      <h2>天面のつけかた</h2>
-      <div id="patterns" class="pattern-list"></div>
+  <main class="layout">
+    <section class="viewer" aria-label="プレビュー">
+      <div class="stage">
+        <canvas id="view" aria-label="直方体の展開図が組み立てられ、開いていく様子"></canvas>
+        <p id="load-error" class="load-error" hidden>
+          画面を表示できませんでした。インターネットにつながっているか確かめて、ページを読み込み直してください。
+        </p>
+      </div>
+      <div class="player">
+        <button id="play" class="primary play" type="button">▶ 再生</button>
+        <input id="seek" type="range" min="0" max="1000" step="1" value="0" aria-label="流れの位置">
+      </div>
     </section>
-    <div class="stage">
-      <canvas id="view"></canvas>
-    </div>
-    <div class="player">
-      <button id="play" class="big" type="button">▶ 再生</button>
-      <input id="seek" type="range" min="0" max="1000" step="1" value="0" aria-label="流れの位置">
-    </div>
+
+    <aside class="panel">
+      <section>
+        <h2>天面のつけかた</h2>
+        <div id="patterns" class="pattern-list"></div>
+      </section>
+
+      <section>
+        <h2>速さ</h2>
+        <div id="speeds" class="speed-list">
+          <button type="button" data-speed="slow">ゆっくり</button>
+          <button type="button" data-speed="normal">ふつう</button>
+          <button type="button" data-speed="fast">はやい</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>動画</h2>
+        <button id="make-video" class="primary wide" type="button">🎬 動画をつくる</button>
+      </section>
+    </aside>
   </main>
+
+  <dialog id="video-dialog" class="video-dialog">
+    <div id="video-progress" class="video-progress">
+      <h2>動画をつくっています</h2>
+      <progress id="progress-bar" max="100" value="0"></progress>
+      <p id="progress-text" class="progress-text">0%</p>
+      <div class="dialog-buttons">
+        <button id="cancel-video" type="button">やめる</button>
+      </div>
+    </div>
+    <div id="video-done" class="video-done" hidden>
+      <h2>動画ができました</h2>
+      <video id="video-preview" controls muted playsinline></video>
+      <div class="dialog-buttons">
+        <a id="download-video" class="primary button-link" download>⬇ ダウンロード</a>
+        <button id="close-video" type="button">とじる</button>
+      </div>
+    </div>
+    <div id="video-error" class="video-error" hidden>
+      <h2>動画をつくれませんでした</h2>
+      <p id="video-error-text"></p>
+      <div class="dialog-buttons">
+        <button id="close-error" type="button">とじる</button>
+      </div>
+    </div>
+  </dialog>
+
   <script type="module" src="src/main.js"></script>
+  <script>
+    // ライブラリを読み込めなかったとき（インターネットにつながっていないときなど）に知らせる
+    setTimeout(function () {
+      if (!window.boxNet) document.getElementById('load-error').hidden = false;
+    }, 20000);
+  </script>
 </body>
 </html>
